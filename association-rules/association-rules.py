@@ -23,6 +23,15 @@ def transformIntoList(data=None):
     ])
   return transformedDataList
 
+def listRules(rules):
+  for item in rules:
+    pair = item[0] 
+    items = [x for x in pair]
+    print('Rule: ' + items[0] + ' -> ' + items[1])
+    print('Support: ' + str(item[1]))
+    print('Confidence: ' + str(item[2][0][2]))
+    print('Lift: ' + str(item[2][0][3]) + '\n')
+
 if __name__ == '__main__':
   print('Question 2:', display(storeData))
   print('Number of product purchased: ', countNumberProductPurchased(storeData))
@@ -31,7 +40,7 @@ if __name__ == '__main__':
   print('Done.\n')
 
   print('Question 4, 5, 6:')
-  assRules = apriori(transData, min_support=0.0045, min_confidence=0.2, min_lift=3, min_length=2)
+  assRules = apriori(transData, min_support=0.0020, min_confidence=0.2, min_lift=2, min_length=2)
   assResult = list(assRules)
   print('Number of rules: ', len(assResult))
-  print('Content: \n', assResult)
+  listRules(assResult)
