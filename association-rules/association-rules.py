@@ -1,7 +1,10 @@
+import pprint
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
 from apyori import apriori
+from tabulate import tabulate
+from operator import itemgetter
+import matplotlib.pyplot as plt
 
 storeData = pd.read_csv('./store_data.csv', header=None)
 
@@ -24,13 +27,17 @@ def transformIntoList(data=None):
   return transformedDataList
 
 def listRules(rules):
+  rulesToTable = list()
+
   for item in rules:
     pair = item[0] 
     items = [x for x in pair]
-    print('Rule: ' + items[0] + ' -> ' + items[1])
-    print('Support: ' + str(item[1]))
-    print('Confidence: ' + str(item[2][0][2]))
-    print('Lift: ' + str(item[2][0][3]) + '\n')
+    rulesToTable.append([items[0], items[1], str(item[1]), str(item[2][0][2]), str(item[2][0][3])])
+  pprint.pprint(rulesToTable)
+  sorted(rulesToTable, key=itemgetter(1))
+  print('AFTER')
+  pprint.pprint(rulesToTable)
+  # print(tabulate(rulesToTable, headers=['First buy', 'Related', 'Support', 'Confidence', 'Lift'], tablefmt='simple'))
 
 if __name__ == '__main__':
   print('Question 2:', display(storeData))
@@ -43,4 +50,4 @@ if __name__ == '__main__':
   assRules = apriori(transData, min_support=0.0020, min_confidence=0.2, min_lift=2, min_length=2)
   assResult = list(assRules)
   print('Number of rules: ', len(assResult))
-  listRules(assResult)
+  listRules(assResult[:10])
