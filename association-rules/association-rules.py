@@ -4,6 +4,7 @@ import pprint
 import matplotlib
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from apyori import apriori
 from tabulate import tabulate
 from operator import itemgetter
@@ -24,7 +25,7 @@ def countUniqueProduct(data):
   for index, _value in enumerate(data):
     uniqueProduct = data[index].unique()
     listUniqueItems = list(set().union(listUniqueItems, uniqueProduct))
-  return len(listUniqueItems) - 1
+  return listUniqueItems, len(listUniqueItems) - 1
 
 def transformIntoList(data=None):
   transformedDataList = []
@@ -81,31 +82,33 @@ def displayInfoRules(rules):
   print('Number of rules: ', len(rules), '\n')
   pprint.pprint(rules)
 
-# def showHeatMap(data, labelY, labelX):
-#   fig, ax = plt.subplots()
-#   im = ax.imshow(data)
-#   ax.set_xticks(np.arange(len(labelX)))
-#   ax.set_yticks(np.arange(len(labelY)))
-#   ax.set_xticklabels(labelX)
-#   ax.set_yticklabels(labelY)
-#   plt.setp(ax.get_xticklabels(), rotation=45, ha='right', rotation_mode='anchor')
-  
-#   for i in range(len(vegetables)):
-#     for j in range(len(farmers)):
-#       text = ax.text(j, i, harvest[i, j], ha='center', va='center', color='w')
+def showHeatMap(data, products):
+  heatmap = [[0 for xValue in range(len(products) - 1)] for yValue in range(len(products) - 1)]
 
-#   ax.set_title('Heatmap products')
-#   fig.tight_layout()
-#   plt.show()
+  # fig, ax = plt.subplots()
+  # im = ax.imshow(data)
+  # ax.set_xticks(np.arange(len(labelX)))
+  # ax.set_yticks(np.arange(len(labelY)))
+  # ax.set_xticklabels(labelX)
+  # ax.set_yticklabels(labelY)
+  # plt.setp(ax.get_xticklabels(), rotation=45, ha='right', rotation_mode='anchor')
+  
+  # for i in range(len(vegetables)):
+  #   for j in range(len(farmers)):
+  #     text = ax.text(j, i, harvest[i, j], ha='center', va='center', color='w')
+
+  # ax.set_title('Heatmap products')
+  # fig.tight_layout()
+  # plt.show()
 
 def main():
   storeData = pd.read_csv('./store_data.csv', header=None)
   nbProdPurchased = countNumberProductPurchased(storeData)
-  uniqueProducts = countUniqueProduct(storeData)
+  uniqueProducts, nbUniqueProducts = countUniqueProduct(storeData)
 
   print('Question 2:', display(storeData))
   print('Number of product purchased: ', nbProdPurchased)
-  print('Unique product: ', uniqueProducts)
+  print('Unique product: ', nbUniqueProducts)
   print('Question 3: Reshaping...')
   transData = transformIntoList(storeData)
   print('Done.\n')
@@ -113,10 +116,22 @@ def main():
   print('Question 4, 5, 6:')
   rules = apriori(transData, min_support=0.006, min_confidence=0.3, min_lift=3, min_length=2)
   transformedRules = cleanRules(list(rules))
-  displayInfoRules(transformedRules)
+  # displayInfoRules(transformedRules)
 
   print('\nQuestion 7:')
   printRulesAsTable(transformedRules, mode='simple', header=['Rules', 'Support', 'Confidence', 'Lift'])
 
+  print('Question 9: ')
+  showHeatMap(storeData, uniqueProducts)
+  # flights_long = sns.load_dataset("flights")
+  # pprint.pprint(flights_long)
+  # flights = flights_long.pivot("month", "year", "passengers")
+
+  # pprint.pprint(flights)
+  # _f, ax = plt.subplots(figsize=(9, 6))
+  # sns.heatmap(flights, fmt="d", linewidths=.5, ax=ax)
+  # plt.show()
+
 if __name__ == '__main__':
+  sns.set()
   main()
