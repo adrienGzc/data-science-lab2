@@ -1,46 +1,63 @@
 import math
 import copy
+import time
 import pprint
 import matplotlib
 import numpy as np
 import pandas as pd
-import seaborn as sns
-from apyori import apriori
+import seaborn as sb
+from apyori import apriori as ap
 from tabulate import tabulate
 from operator import itemgetter
 from collections import Counter
 import matplotlib.pyplot as plt
+from mlxtend.frequent_patterns import fpgrowth, apriori, association_rules
+from mlxtend.preprocessing import TransactionEncoder
 
-def display(data, number=7):
-  print(data.head(number))
-
+# Get all the product purchased in the dataset
+# Basically, a sum of all the item in each row of the table
 def countNumberProductPurchased(data):
   nbProduct = 0
-  for cols in data:
-    nbProduct += data[cols].count()
+  for instance in data:
+    nbProduct += len(instance)
   return nbProduct
 
+# Get all product purchased as an unique product.
 def countUniqueProduct(data):
   listUniqueItems = list()
-  for index, _value in enumerate(data):
-    uniqueProduct = data[index].unique()
-    listUniqueItems = list(set().union(listUniqueItems, uniqueProduct))
-  return listUniqueItems, len(listUniqueItems) - 1
+  for instance in data:
+    listUniqueItems = list(set().union(listUniqueItems, instance))
+  listUniqueItems.sort()
+  return listUniqueItems, len(listUniqueItems)
 
+def getAssociationRules(data):
+  return ap(data, min_support=0.006, min_confidence=0.3, min_lift=3.0, min_length=2)
+
+def runAprioryFromMlextend(dataset):
+  rules = apriori(dataset, min_support=0.006, use_colnames=True)
+  rules = association_rules(rules, metric="lift", min_threshold=3.0)
+  return rules
+
+def runFpFromMlextend(dataset):
+  rules = fpgrowth(dataset, min_support=0.006, use_colnames=True)
+  rules = association_rules(rules, min_threshold=3.0, metric='lift')
+  return rules
+
+# Transform the dataset into a list of list.
 def transformIntoList(data=None):
-  transformedDataList = []
-  for index in range(0, len(data)):
-    transformedDataList.append([
-      str(data.values[index, feature])
-      for feature in range(0, 20)
-    ])
+  transformedDataList = list()
+
+  for instance in data.values:
+    transformedDataList.append([str(value) for value in instance if str(value) != 'nan' ])
   return transformedDataList
 
+# Print a list of list as a table using tabulate as library.
 def printRulesAsTable(data=None, mode='simple', header=[]):
   if data is None:
     return False
   print(tabulate(data, headers=header, tablefmt=mode))
 
+# Get rid of the nan value in the table if exist.
 def filterNanRules(rules):
   filteredRules = list()
 
@@ -55,6 +72,7 @@ def filterNanRules(rules):
       )
   return filteredRules
 
+# Concate the 2 products related for the table view.
 def concatProduct(rules):
   transformed = list()
 
@@ -66,6 +84,7 @@ def concatProduct(rules):
     )
   return transformed
 
+# Get rid of the duplicate rules but reversed like: beef & tomato || tomato & beef.
 def deleteDuplicate(rules):
   rulesDict = dict()
   for rule in rules:
@@ -73,6 +92,7 @@ def deleteDuplicate(rules):
       rulesDict[rule[0]] = list(rule)
   return [value for value in rulesDict.values()]
 
+# Just a wrapper to call all the function to shape the data.
 def cleanRules(data):
   tmp = filterNanRules(data)
   tmp = concatProduct(tmp)
@@ -82,56 +102,91 @@ def displayInfoRules(rules):
   print('Number of rules: ', len(rules), '\n')
   pprint.pprint(rules)
 
-def showHeatMap(data, products):
-  heatmap = [[0 for xValue in range(len(products) - 1)] for yValue in range(len(products) - 1)]
+# Return 2D array with element delete in X and Y.
+# HAS TO BE AN NUMPY ARRAY
+def deleteElem2dArray(array2d, index):
+  array2d = np.delete(array2d, index, 0)
+  return np.delete(array2d, index, 1)
 
-  # fig, ax = plt.subplots()
-  # im = ax.imshow(data)
-  # ax.set_xticks(np.arange(len(labelX)))
-  # ax.set_yticks(np.arange(len(labelY)))
-  # ax.set_xticklabels(labelX)
-  # ax.set_yticklabels(labelY)
-  # plt.setp(ax.get_xticklabels(), rotation=45, ha='right', rotation_mode='anchor')
+# Delete all elem of the heatmap to be higher than the breakpoint.
+def filterLowerOccurence(heatmap, products, breakPoint=250):
+  index = 0
+  for instance in heatmap:
+    # Get the max value and check if she is lower than the breakpoint.
+    if max(instance) < breakPoint:
+      # Delete case in the heatmap (2D array).
+      heatmap = deleteElem2dArray(heatmap, index)
+      # Remove also the product, otherwise still present for the label in heatmap.
+      products.remove(products[index])
+      index -= 1
+    index += 1
+  return heatmap, products
+
+# Return the heatmap. Count all the product related to each other in a list of list.
+def getHeatMap(data, products):
+  # Init the heatmap with a list of list of 0, based on the number of unique products.
+  heatmap = np.zeros((len(products), len(products)), dtype=int)
+  # heatmap = [[0 for xValue in range(len(products))] for yValue in range(len(products))]
+
+  for product in products:
+    for instance in data:
+      if product in instance:
+        for item in instance:
+          if product != item:
+            yIndex = products.index(product)
+            xIndex = products.index(item)
+            heatmap[yIndex][xIndex] += 1
+  return filterLowerOccurence(heatmap, products)
+
+def showHeatmap(data, labels):
+  sb.set()
+  plt.figure(figsize=(10,6))
+  plt.xlabel("Unique products X")
+  plt.ylabel("Unique products Y")
+  sb.heatmap(data, cmap='YlGn', xticklabels=labels, yticklabels=labels)
+  plt.show()
+
+def compareAlgo(dataset):
+  # Transform dataset to a readable dataset accepted for the algorithms.
+  te = TransactionEncoder()
+  te_ary = te.fit(dataset).transform(dataset)
+  df = pd.DataFrame(te_ary, columns=te.columns_)
+
+  # Collect the start and end point of the timer.
+  start = time.time()
+  runAprioryFromMlextend(df)
+  end = time.time()
+  print("Time apriori:", end - start)
   
-  # for i in range(len(vegetables)):
-  #   for j in range(len(farmers)):
-  #     text = ax.text(j, i, harvest[i, j], ha='center', va='center', color='w')
-
-  # ax.set_title('Heatmap products')
-  # fig.tight_layout()
-  # plt.show()
+  start = time.time()
+  runFpFromMlextend(df)
+  end = time.time()
+  print("Time fpgrowth:", end - start)
 
 def main():
   storeData = pd.read_csv('./store_data.csv', header=None)
-  nbProdPurchased = countNumberProductPurchased(storeData)
-  uniqueProducts, nbUniqueProducts = countUniqueProduct(storeData)
 
-  print('Question 2:', display(storeData))
+  print('Question 2, 3: ', storeData[:7])
+  transData = transformIntoList(storeData)
+  nbProdPurchased = countNumberProductPurchased(transData)
+  uniqueProducts, nbUniqueProducts = countUniqueProduct(transData)
   print('Number of product purchased: ', nbProdPurchased)
   print('Unique product: ', nbUniqueProducts)
-  print('Question 3: Reshaping...')
-  transData = transformIntoList(storeData)
-  print('Done.\n')
 
-  print('Question 4, 5, 6:')
-  rules = apriori(transData, min_support=0.006, min_confidence=0.3, min_lift=3, min_length=2)
+  print('Question 4, 5, 6: ')
+  rules = getAssociationRules(transData)
   transformedRules = cleanRules(list(rules))
-  # displayInfoRules(transformedRules)
+  displayInfoRules(transformedRules)
 
-  print('\nQuestion 7:')
+  print('\nQuestion 7: ')
   printRulesAsTable(transformedRules, mode='simple', header=['Rules', 'Support', 'Confidence', 'Lift'])
 
-  print('Question 9: ')
-  showHeatMap(storeData, uniqueProducts)
-  # flights_long = sns.load_dataset("flights")
-  # pprint.pprint(flights_long)
-  # flights = flights_long.pivot("month", "year", "passengers")
+  print('\nQuestion 9: ')
+  heatmap, productsLabel = getHeatMap(transData, uniqueProducts)
+  showHeatmap(heatmap, productsLabel)
 
-  # pprint.pprint(flights)
-  # _f, ax = plt.subplots(figsize=(9, 6))
-  # sns.heatmap(flights, fmt="d", linewidths=.5, ax=ax)
-  # plt.show()
+  print('\nQuestion 10: ')
+  compareAlgo(transData)
 
 if __name__ == '__main__':
-  sns.set()
   main()
